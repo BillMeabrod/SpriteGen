@@ -11,6 +11,7 @@ public class ConsoleAnimationPlayer : IAnimationPlayerPort
 {
     private const string Block = "██";
     private const string Reset = "\x1b[0m";
+    private const string ClearToEndOfLine = "\x1b[0K";
 
     public void Play(IReadOnlyList<SpriteGrid> frames, int fps = 8)
     {
@@ -20,25 +21,46 @@ public class ConsoleAnimationPlayer : IAnimationPlayerPort
         var delayMs = Math.Max(1, 1000 / fps);
         var height = frames[0].Height;
 
-        var rendered = new string[frames.Count];
+        var rendered = new string[frames.Count][];
         for (int i = 0; i < frames.Count; i++)
-            rendered[i] = RenderFrame(frames[i]);
+            rendered[i] = RenderFrameRows(frames[i]);
 
+        TryEnsureHeight(height + 2);
+
+        if (height >= System.Console.BufferHeight)
+        {
+            System.Console.WriteLine($"[Warning] Sprite is {height} rows but the console fits {System.Console.BufferHeight}.");
+            System.Console.WriteLine("Resize the window taller, then press any key to continue.");
+            System.Console.ReadKey(intercept: true);
+            TryEnsureHeight(height + 2);
+        }
+
+        var visibleRows = Math.Min(height, System.Console.BufferHeight);
+
+        System.Console.Clear();
         System.Console.CursorVisible = false;
-        System.Console.WriteLine("Playing animation — press any key to stop.\n");
+
+        var showFooter = visibleRows < System.Console.BufferHeight;
 
         try
         {
             int frame = 0;
-            bool first = true;
+
+            if (showFooter)
+            {
+                System.Console.SetCursorPosition(0, visibleRows);
+                System.Console.Write("Playing — press any key to stop.");
+            }
 
             while (!System.Console.KeyAvailable)
             {
-                if (!first)
-                    System.Console.Write($"\x1b[{height}A");
+                var rows = rendered[frame];
 
-                System.Console.Write(rendered[frame]);
-                first = false;
+                for (int row = 0; row < visibleRows; row++)
+                {
+                    System.Console.SetCursorPosition(0, row);
+                    System.Console.Write(rows[row]);
+                }
 
                 frame = (frame + 1) % rendered.Length;
                 Thread.Sleep(delayMs);
@@ -49,16 +71,36 @@ public class ConsoleAnimationPlayer : IAnimationPlayerPort
         finally
         {
             System.Console.CursorVisible = true;
-            System.Console.WriteLine();
+            System.Console.Clear();
         }
     }
 
-    private static string RenderFrame(SpriteGrid grid)
+    private static void TryEnsureHeight(int required)
     {
-        var sb = new StringBuilder();
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        try
+        {
+            if (System.Console.BufferHeight < required)
+                System.Console.SetBufferSize(System.Console.BufferWidth, required);
+
+            if (System.Console.WindowHeight < required)
+                System.Console.SetWindowSize(System.Console.WindowWidth, required);
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static string[] RenderFrameRows(SpriteGrid grid)
+    {
+        var rows = new string[grid.Height];
 
         for (int row = 0; row < grid.Height; row++)
         {
+            var sb = new StringBuilder();
+
             for (int col = 0; col < grid.Width; col++)
             {
                 var (r, g, b) = HexToRgb(grid.GetColor(row, col));
@@ -67,10 +109,12 @@ public class ConsoleAnimationPlayer : IAnimationPlayerPort
             }
 
             sb.Append(Reset);
-            sb.AppendLine();
+            sb.Append(ClearToEndOfLine);
+
+            rows[row] = sb.ToString();
         }
 
-        return sb.ToString();
+        return rows;
     }
 
     private static (int R, int G, int B) HexToRgb(string hex)

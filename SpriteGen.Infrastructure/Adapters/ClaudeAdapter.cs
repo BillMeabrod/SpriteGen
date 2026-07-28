@@ -9,7 +9,7 @@ namespace SpriteGen.Infrastructure.Adapters;
 public class ClaudeAdapter : LlmAdapterBase
 {
     private readonly AnthropicClient _client;
-    private const string ModelName = "claude-fable-5";
+    private const string ModelName = "claude-opus-5";
 
     public ClaudeAdapter(string apiKey, SpriteDimensions dimensions) : base(dimensions)
     {
