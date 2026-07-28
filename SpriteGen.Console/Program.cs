@@ -9,8 +9,7 @@ using SpriteGen.Application.Services;
 using SpriteGen.Console.Adapters;
 using SpriteGen.Domain.Models;
 using SpriteGen.Domain.Ports;
-using SpriteGen.Infrastructure.Adapters;
-
+using SpriteGen.Infrastructure.Llm;
 
 var config = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json")
@@ -18,10 +17,12 @@ var config = new ConfigurationBuilder()
 
 var dimensions = ResolveDimensions();
 var generatorName = config["Generator"] ?? "Claude";
-var generator = CreateGenerator(generatorName, dimensions);
+var llm = CreateLlmClient(generatorName);
 
+var spriteService = new SpriteGenerationService(llm, dimensions);
+var animationService = new AnimationGenerationService(llm);
 var renderer = new ConsoleRenderer();
-var service = new SpriteGenerationService<StringBuilder>(generator, renderer);
+var player = new ConsoleAnimationPlayer();
 
 Sprite? current = null;
 
@@ -33,6 +34,7 @@ while (true)
 {
     current = await ShowMainMenuAsync();
 }
+
 SpriteDimensions ResolveDimensions()
 {
     var width = int.TryParse(config["SpriteWidth"], out var w) ? w : 32;
@@ -45,10 +47,14 @@ SpriteDimensions ResolveDimensions()
     return dims.Value;
 }
 
-IGenerationPort CreateGenerator(string name, SpriteDimensions dims) => name.ToLower() switch
+ILlmClient CreateLlmClient(string name) => name.ToLower() switch
 {
-    "claude" => new ClaudeAdapter(ResolveKey("Claude:ApiKey", "ANTHROPIC_API_KEY", "Claude"), dims),
-    "gemini" => new GeminiAdapter(ResolveKey("Gemini:ApiKey", "GEMINI_API_KEY", "Gemini"), dims),
+    "claude" => new ClaudeLlmClient(
+        ResolveKey("Claude:ApiKey", "ANTHROPIC_API_KEY", "Claude"),
+        model: config["Claude:Model"] ?? "claude-fable-5"),
+    "gemini" => new GeminiLlmClient(
+        ResolveKey("Gemini:ApiKey", "GEMINI_API_KEY", "Gemini"),
+        model: config["Gemini:Model"] ?? "gemini-3.5-flash"),
     _ => throw new InvalidOperationException($"Unknown generator '{name}'. Use 'Claude' or 'Gemini'.")
 };
 
@@ -61,7 +67,9 @@ async Task<Sprite?> ShowMainMenuAsync()
 {
     Console.WriteLine("1. Prompt");
     Console.WriteLine("2. Load");
-    Console.WriteLine("3. Quit");
+    if (current is not null)
+        Console.WriteLine("3. Animate");
+    Console.WriteLine("0. Quit");
     Console.Write("\nSelect: ");
 
     var choice = Console.ReadLine()?.Trim();
@@ -70,7 +78,8 @@ async Task<Sprite?> ShowMainMenuAsync()
     {
         "1" => await RunPromptLoopAsync(current),
         "2" => await RunLoadAsync(),
-        "3" => Quit(),
+        "3" when current is not null => await RunAnimateAsync(current),
+        "0" => Quit(),
         _ => Invalid(current)
     };
 }
@@ -101,9 +110,9 @@ async Task<Sprite?> RunPromptLoopAsync(Sprite? previous)
             continue;
         }
 
-        var (sprite, output, error) = previous is null
-            ? await WithLoadingAsync(service.GenerateAsync(input))
-            : await WithLoadingAsync(service.RefineAsync(input, previous));
+        var (sprite, error) = previous is null
+            ? await WithLoadingAsync(spriteService.GenerateAsync(input))
+            : await WithLoadingAsync(spriteService.GenerateAsync(input, previous));
 
         if (sprite is null)
         {
@@ -112,9 +121,39 @@ async Task<Sprite?> RunPromptLoopAsync(Sprite? previous)
         }
 
         Console.WriteLine();
-        Console.WriteLine(output);
+        Console.WriteLine(renderer.Render(sprite));
         previous = sprite;
     }
+}
+
+async Task<Sprite?> RunAnimateAsync(Sprite baseSprite)
+{
+    Console.Write("\nDescribe the animation (e.g. 'walk cycle facing down'): ");
+    var animPrompt = Console.ReadLine()?.Trim();
+
+    if (string.IsNullOrEmpty(animPrompt))
+    {
+        Console.WriteLine("[Error] No animation description entered.\n");
+        return baseSprite;
+    }
+
+    Console.Write("Frame count [4]: ");
+    var frameInput = Console.ReadLine()?.Trim();
+    var frameCount = int.TryParse(frameInput, out var fc) && fc > 0 ? fc : 4;
+
+    var (animation, error) = await WithLoadingAsync(
+        animationService.GenerateAsync(baseSprite, animPrompt, frameCount));
+
+    if (animation is null)
+    {
+        Console.WriteLine($"[Error] {error}\n");
+        return baseSprite;
+    }
+
+    Console.WriteLine();
+    player.Play(animation, fps: 8);
+
+    return baseSprite;
 }
 
 async Task<Sprite?> RunLoadAsync()
@@ -170,9 +209,8 @@ async Task<Sprite?> RunLoadAsync()
         }
 
         var sprite = new Sprite(path, grid);
-        var output = renderer.Render(sprite);
         Console.WriteLine();
-        Console.WriteLine(output);
+        Console.WriteLine(renderer.Render(sprite));
 
         return sprite;
     }
