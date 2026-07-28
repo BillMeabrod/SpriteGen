@@ -2,9 +2,7 @@
 using Anthropic.Models.Messages;
 using Anthropic.Services;
 using SpriteGen.Domain.Models;
-using System;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace SpriteGen.Infrastructure.Adapters;
 

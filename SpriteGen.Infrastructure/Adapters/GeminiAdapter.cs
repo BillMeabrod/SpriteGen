@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Google.GenAI;
 using Google.GenAI.Types;
 using SpriteGen.Domain.Models;

@@ -1,7 +1,5 @@
 using System;
-using System.IO;
 using System.Text;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
@@ -21,6 +19,7 @@ var llm = CreateLlmClient(generatorName);
 
 var spriteService = new SpriteGenerationService(llm, dimensions);
 var animationService = new AnimationGenerationService(llm);
+var persistence = new SpritePersistenceService();
 var renderer = new ConsoleRenderer();
 var player = new ConsoleAnimationPlayer();
 
@@ -68,7 +67,10 @@ async Task<Sprite?> ShowMainMenuAsync()
     Console.WriteLine("1. Prompt");
     Console.WriteLine("2. Load");
     if (current is not null)
+    {
         Console.WriteLine("3. Animate");
+        Console.WriteLine("4. Save");
+    }
     Console.WriteLine("0. Quit");
     Console.Write("\nSelect: ");
 
@@ -79,6 +81,7 @@ async Task<Sprite?> ShowMainMenuAsync()
         "1" => await RunPromptLoopAsync(current),
         "2" => await RunLoadAsync(),
         "3" when current is not null => await RunAnimateAsync(current),
+        "4" when current is not null => await RunSaveAsync(current),
         "0" => Quit(),
         _ => Invalid(current)
     };
@@ -151,9 +154,38 @@ async Task<Sprite?> RunAnimateAsync(Sprite baseSprite)
     }
 
     Console.WriteLine();
-    player.Play(animation, fps: 8);
+    player.Play(animation.Frames, fps: 8);
+
+    Console.Write("\nSave this animation? (y/N): ");
+    var save = Console.ReadLine()?.Trim();
+    if (save is not null && save.Equals("y", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Write("Save path (e.g. guard-walk.json): ");
+        var path = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(path))
+        {
+            var saveError = await persistence.SaveAnimationAsync(animation, path, animPrompt);
+            Console.WriteLine(saveError is null ? $"Saved to {path}\n" : $"[Error] {saveError}\n");
+        }
+    }
 
     return baseSprite;
+}
+
+async Task<Sprite?> RunSaveAsync(Sprite sprite)
+{
+    Console.Write("\nSave path (e.g. guard.json): ");
+    var path = Console.ReadLine()?.Trim();
+
+    if (string.IsNullOrEmpty(path))
+    {
+        Console.WriteLine("[Error] No path entered.\n");
+        return sprite;
+    }
+
+    var error = await persistence.SaveSpriteAsync(sprite, path);
+    Console.WriteLine(error is null ? $"Saved to {path}\n" : $"[Error] {error}\n");
+    return sprite;
 }
 
 async Task<Sprite?> RunLoadAsync()
@@ -167,58 +199,24 @@ async Task<Sprite?> RunLoadAsync()
         return current;
     }
 
-    if (!File.Exists(path))
+    var result = await persistence.LoadAsync(path);
+
+    if (result.Error is not null)
     {
-        Console.WriteLine($"[Error] File not found: {path}\n");
+        Console.WriteLine($"[Error] {result.Error}\n");
         return current;
     }
 
-    try
+    if (result.IsAnimation)
     {
-        var json = await File.ReadAllTextAsync(path);
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("width", out var widthEl) || !root.TryGetProperty("height", out var heightEl))
-        {
-            Console.WriteLine("[Error] File must include 'width' and 'height'.\n");
-            return current;
-        }
-
-        var (dims, dimError) = SpriteDimensions.TryCreate(widthEl.GetInt32(), heightEl.GetInt32());
-        if (dims is null)
-        {
-            Console.WriteLine($"[Error] {dimError}\n");
-            return current;
-        }
-
-        var palette = JsonSerializer.Deserialize<string[]>(root.GetProperty("palette").GetRawText());
-        var pixels = JsonSerializer.Deserialize<int[]>(root.GetProperty("pixels").GetRawText());
-
-        if (palette is null || pixels is null)
-        {
-            Console.WriteLine("[Error] Invalid file format.\n");
-            return current;
-        }
-
-        var (grid, gridError) = SpriteGrid.TryCreate(dims.Value, palette, pixels);
-        if (grid is null)
-        {
-            Console.WriteLine($"[Error] {gridError}\n");
-            return current;
-        }
-
-        var sprite = new Sprite(path, grid);
-        Console.WriteLine();
-        Console.WriteLine(renderer.Render(sprite));
-
-        return sprite;
+        Console.WriteLine($"\nLoaded animation: {result.Animation!.Frames.Count} frames.\n");
+        player.Play(result.Animation.Frames, fps: 8);
+        return result.Animation.BaseSprite;
     }
-    catch (JsonException ex)
-    {
-        Console.WriteLine($"[Error] JSON parse failed: {ex.Message}\n");
-        return current;
-    }
+
+    Console.WriteLine();
+    Console.WriteLine(renderer.Render(result.Sprite!));
+    return result.Sprite;
 }
 
 Sprite? Quit()

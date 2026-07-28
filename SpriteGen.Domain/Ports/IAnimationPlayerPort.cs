@@ -1,8 +1,9 @@
-﻿using SpriteGen.Domain.Models;
+﻿using System.Collections.Generic;
+using SpriteGen.Domain.Models;
 
 namespace SpriteGen.Domain.Ports;
 
 public interface IAnimationPlayerPort
 {
-    void Play(Animation animation, int fps = 8);
+    void Play(IReadOnlyList<SpriteGrid> frames, int fps = 8);
 }

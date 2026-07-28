@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace SpriteGen.Domain.Models;
+﻿namespace SpriteGen.Domain.Models;
 
 public class Animation
 {

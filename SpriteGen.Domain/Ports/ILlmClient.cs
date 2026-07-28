@@ -1,6 +1,4 @@
-﻿using System.Threading.Tasks;
-
-namespace SpriteGen.Domain.Ports;
+﻿namespace SpriteGen.Domain.Ports;
 
 public interface ILlmClient
 {

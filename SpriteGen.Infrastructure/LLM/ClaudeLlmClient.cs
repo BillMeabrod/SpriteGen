@@ -2,8 +2,6 @@
 using Anthropic.Models.Messages;
 using Anthropic.Services;
 using SpriteGen.Domain.Ports;
-using System;
-using System.Threading.Tasks;
 
 namespace SpriteGen.Infrastructure.Llm;
 
