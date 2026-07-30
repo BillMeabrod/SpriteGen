@@ -3,7 +3,7 @@ using Anthropic.Models.Messages;
 using Anthropic.Services;
 using SpriteGen.Domain.Ports;
 
-namespace SpriteGen.Infrastructure.Llm;
+namespace SpriteGen.Infrastructure.Adapters;
 
 public class ClaudeLlmClient : ILlmClient
 {

@@ -7,7 +7,7 @@ using SpriteGen.Application.Services;
 using SpriteGen.Console.Adapters;
 using SpriteGen.Domain.Models;
 using SpriteGen.Domain.Ports;
-using SpriteGen.Infrastructure.Llm;
+using SpriteGen.Infrastructure.Adapters;
 
 var config = new ConfigurationBuilder()
     .AddJsonFile("appsettings.json")
@@ -50,7 +50,7 @@ ILlmClient CreateLlmClient(string name) => name.ToLower() switch
 {
     "claude" => new ClaudeLlmClient(
         ResolveKey("Claude:ApiKey", "ANTHROPIC_API_KEY", "Claude"),
-        model: config["Claude:Model"] ?? "claude-fable-5"),
+        model: config["Claude:Model"] ?? "claude-opus-5"),
     "gemini" => new GeminiLlmClient(
         ResolveKey("Gemini:ApiKey", "GEMINI_API_KEY", "Gemini"),
         model: config["Gemini:Model"] ?? "gemini-3.5-flash"),

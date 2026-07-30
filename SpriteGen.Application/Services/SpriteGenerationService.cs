@@ -35,7 +35,9 @@ public class SpriteGenerationService
         - Apply left-right symmetry where appropriate.
         - Outlines should use dark, slightly colored shadows rather than pure black.
         - Output exactly {_dimensions.Height} rows. Each row is an array of exactly {_dimensions.Width} palette indices.
-        - The subject's widest point must span the full {_dimensions.Width} pixels, touching both left and right edges. The tallest extent must span the full {_dimensions.Height} pixels, touching top and bottom edges. Scale the whole subject uniformly; do not distort individual parts.
+        - The subject's height should roughly match the size of the frame ( {_dimensions.Width} x {_dimensions.Height} pixels). It does not need to be exact.
+        - The subject's lowest pixels should be touching the bottom edge of the frame.
+        - Allow a 2 pixel empty space on the left or right to allow movement.
         - All pixels should be a direct part of the subject. No detached ground or objects.
         """;
 

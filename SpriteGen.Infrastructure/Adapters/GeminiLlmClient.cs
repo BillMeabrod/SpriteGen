@@ -6,7 +6,7 @@ using Google.GenAI.Types;
 using SpriteGen.Domain.Ports;
 using Type = Google.GenAI.Types.Type;
 
-namespace SpriteGen.Infrastructure.Llm;
+namespace SpriteGen.Infrastructure.Adapters;
 
 public class GeminiLlmClient : ILlmClient
 {
