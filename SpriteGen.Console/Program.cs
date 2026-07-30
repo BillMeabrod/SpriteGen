@@ -1,7 +1,3 @@
-using System;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using SpriteGen.Application.Services;
 using SpriteGen.Console.Adapters;

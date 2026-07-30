@@ -1,5 +1,4 @@
-﻿using System.Collections.Generic;
-using SpriteGen.Domain.Models;
+﻿using SpriteGen.Domain.Models;
 
 namespace SpriteGen.Domain.Ports;
 
